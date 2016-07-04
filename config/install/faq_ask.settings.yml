@@ -1,0 +1,14 @@
+title: 'Frequently Asked Questions'
+description: ''
+custom_breadcrumbs: TRUE
+
+enable_faq_ask: TRUE
+notify_experts: FALSE
+notify_askers: FALSE
+use_cron_notify_askers: FALSE
+advice_for_experts: 'You are allowed to edit unanswered questions.'
+advice_for_asker : 'You may edit your own questions until they are answered.'
+only_expert_categorize: TRUE
+unanswered_body_text : 'Not answered yet.'
+answer_advice_expert : 'If you select a question, you must answer it.'
+help_text_asker : 'Add a question for our expert to answer. After being answered, your question and the answer will be displayed in the FAQ pages. If the question will not fit in the box below, please try to rephrase it.'

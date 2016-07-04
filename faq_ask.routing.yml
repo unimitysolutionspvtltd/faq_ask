@@ -1,0 +1,7 @@
+faq_ask.faq_ask-experts:
+    path: '/admin/config/content/faq/ask'
+    defaults:
+        _title: 'Experts'
+        _controller: 'Drupal\faq_ask\Controller\FaqAskController::expertsSettings'
+    requirements:
+        _permission: 'administer faq'

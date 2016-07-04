@@ -1,0 +1,101 @@
+<?php
+
+use Symfony\Component\HttpFoundation\RedirectResponse;
+use Drupal\Core\Form\FormStateInterface;
+/**
+ * @file
+ * This module is an add-on to the FAQ module that allows users with the 'ask question'
+ * permission to create a question which will be queued for an 'expert' to answer.
+ */
+
+ /**
+ * Implements hook_help().
+ */
+function faq_ask_help($route_name, \Drupal\Core\Routing\RouteMatchInterface $route_match) {
+  $output = '';
+  switch ($route_name) {
+    case 'help.page.faq_ask':
+      $output .= '<p>'. t("This module is an add-on to the FAQ module that allows users with the 'ask question' permission to create a question which will be queued for an 'expert' to answer.") . '</p>' .
+        '<p>' . t("The module shows an abbreviated version of the FAQ form without an answer field. The node is created without the 'published' attribute. There is a block that will show the unanswered questions to the 'expert' (generally, this requires a separate role).") . '</p>' .
+        '<p>' . t("Viewing of the completed question and answer pair is done by the FAQ module.") . '</p>' .
+        '<p>' . t("Simply adding the 'FAQ' content type to a vocabulary will not make it eligible for experts; you must go to the settings page and add it there.") . '</p>';
+      return $output; '</p>';
+      //return $output;
+  }
+}
+
+
+ /**
+ * Implements hook_form_FORM_ID_alter().
+ *
+ * This is how we build the "ask question" form.
+ * @TODO: Make sure this is called after the taxonomy is added, so that we may delete or modify the taxonomy part of the form if we want to.
+ *
+ * @param array $form
+ *   The edit form to modify.
+ * @param array $form_state
+ *   Form state information
+ *
+ * @return array $form
+ *   Modified form as called by reference
+ */
+function faq_ask_form_node_faq_form_alter(&$form, FormStateInterface $form_state, $form_id) {
+  $faqask_settings = \Drupal::config('faq_ask.settings');
+  if ($faqask_settings->get('enable_faq_ask')) {
+    $user = \Drupal::currentUser();
+    if ($user->hasPermission('answer question')) {
+      $form['body']['widget'][0]['#required'] = TRUE;
+    } else if ($user->hasPermission('ask question')) {
+      hide($form['body']);
+      hide($form['revision_information']);
+      $form['actions']['submit']['#submit'][] = 'faq_ask_form_question_submit';
+    }
+  }
+}
+
+function faq_ask_form_question_submit($form, FormStateInterface $form_state) {
+  $node_id = $form_state->getValue('nid');
+  $node = node_load($node_id);
+  if (is_object($node)) {
+    global $base_url;
+    $node->set("status", 0);
+    $node->save();
+    drupal_set_message(t('Your question submitted to Experts.'), 'status');
+    $response = new RedirectResponse($base_url);
+    $response->send();
+    exit();
+  }
+}
+
+function faq_ask_form_node_faq_edit_form_alter(&$form, FormStateInterface $form_state, $form_id) {
+  $faqask_settings = \Drupal::config('faq_ask.settings');
+  if ($faqask_settings->get('enable_faq_ask')) {
+    $node = \Drupal::routeMatch()->getParameter('node');
+    $user = \Drupal::currentUser();
+    if ($user->hasPermission('answer question')) {
+      $form['body']['widget'][0]['#required'] = TRUE;
+      $form['actions']['submit']['#submit'][] = 'faq_ask_form_answer_submit';
+    } else if($user->hasPermission('ask question')) {
+      if (!$node->status->value) {
+        hide($form['body']);
+        hide($form['revision_information']);
+        $form['actions']['submit']['#submit'][] = 'faq_ask_form_question_submit';
+      } elseif ($node->status->value){
+        global $base_url;
+        drupal_set_message(t('Content is published, So you cant edit.'), 'warning');
+        $response = new RedirectResponse($base_url . '/node/' . $node->id());
+        $response->send();
+        exit();
+      }
+    }
+  }
+}
+
+function faq_ask_form_answer_submit($form, FormStateInterface $form_state) {
+  $node_id = $form_state->getValue('nid');
+  $node = node_load($node_id);
+  if (is_object($node->body) && ($node->body->value != '')) {
+    $node->set("status", 1);
+    $node->save();
+  } 
+}
