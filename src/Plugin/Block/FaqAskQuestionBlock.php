@@ -7,17 +7,16 @@
 
 namespace Drupal\faq_ask\Plugin\Block;
 
-use Drupal\Core\Url;
 use Drupal\faq_ask\Utility;
 use Drupal\Core\Block\BlockBase;
-use Drupal\taxonomy\Entity\Vocabulary;
+
 
 /**
  * Provides a simple block.
  *
  * @Block(
- *   id = "faq_categories",
- *   admin_label = @Translation("FAQ Categories")
+ *   id = "faq_ask_question",
+ *   admin_label = @Translation("FAQ Ask Questions")
  * )
  */
 class FaqAskQuestionBlock extends BlockBase {
@@ -26,7 +25,11 @@ class FaqAskQuestionBlock extends BlockBase {
    * Implements \Drupal\block\BlockBase::blockBuild().
    */
   public function build() {
-    return Utility::faq_ask_a_question_blockform();
+    //Utility::faq_ask_a_question_blockform();
+   return array(
+      '#markup' => $this->t('Hello, World!'),
+    );
   }
+  
 
 }

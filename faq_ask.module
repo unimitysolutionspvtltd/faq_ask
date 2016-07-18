@@ -7,6 +7,7 @@ use Drupal\Core\Session\AccountInterface;
 use Drupal\Core\Routing\RouteMatchInterface;
 use Drupal\faq_ask\Utility;
 use Drupal\Core\Url;
+use Drupal\Core\Entity\EntityInterface;
 
 /**
  * @file
@@ -131,7 +132,6 @@ function faq_ask_form_node_faq_form_alter(&$form, FormStateInterface $form_state
 
   // Make sure we know we came from here.
   $form['faq_ask'] = array('#type' => 'value', '#value' => TRUE);
-
   $form['actions']['submit']['#submit'][] = 'faq_ask_submit';
 
   // Handle special cases if this is a block form
@@ -193,7 +193,7 @@ function faq_ask_form_validate($form, FormStateInterface &$form_state) {
 }
 
 /**
- * Implements hook_node_update().
+ * Implements hook_entity_update().
  *
  * Checks if the node being updated is a question that has been answered
  *
@@ -201,12 +201,14 @@ function faq_ask_form_validate($form, FormStateInterface &$form_state) {
  *   Node object to update
  *
  */
-function faq_ask_node_update($node) {
-  if ($node->type == 'faq') {
+function faq_ask_entity_update(EntityInterface $node, $type) {
+  if($type == "node") {
+    if ($node->getType() == 'faq') {
+
     $nid = $node->id();
     $faq_ask_settings = \Drupal::config('faq_ask.settings');
     // Update the faq_ask_term_index table by removing nid/tid pairs when node is published
-    if ($node->get('status')->value == '1') {
+    if ($node->get('status')->value == 1 || !empty($node->body->value)) {
       $delete_query = \Drupal::database()->delete('faq_ask_term_index');
       $delete_query->condition('nid', $nid)->execute();
     }
@@ -238,6 +240,7 @@ function faq_ask_node_update($node) {
         drupal_set_message( t( 'Asker notification email to @to failed for the "@quest" question.', array('@to' => $email, '@quest' => check_plain($node_title))));
       }
     }
+    }
 
   }
 }
@@ -252,20 +255,20 @@ function faq_ask_node_update($node) {
  * @param object $node
  *   Node object to handle
  */
-function faq_ask_node_insert($node) {
+function faq_ask_entity_insert(EntityInterface $node, $type) {
+  if($type == "node") {
   $faq_ask_settings = \Drupal::config('faq_ask.settings');
   $user = \Drupal::currentUser();
 
   if ($node->getType() == 'faq') {    // Handle only faq node types
-/*
     $terms = Utility::_faq_ask_get_terms($node);
     // Update the faq_ask_term_index table if node is unpublished
-    if ($node->get('status')->value == '0') {
-      \Drupal::database()->delete('faq_ask_term_index')->condition('nid', $node->nid)->execute();
+    if (empty($node->body->value) && (!$user->hasPermission('answer question') && $user->hasPermission('ask question'))) {
+      \Drupal::database()->delete('faq_ask_term_index')->condition('nid', $node->id())->execute();
       foreach ($terms as $tid => $term) {
         if ($tid) {  // If term is available
           \Drupal::database()->insert('faq_ask_term_index')
-            ->fields( array('nid' => $node->id(), 'tid' => $tid, 'sticky' => $node->get('sticky')->value, 'created' => $node->get('created')->value))
+            ->fields( array('nid' => intval($node->id()), 'tid' => $tid, 'sticky' => intval($node->get('sticky')->value), 'created' => intval($node->get('created')->value)))
             ->execute();
         }
       }
@@ -329,7 +332,7 @@ function faq_ask_node_insert($node) {
       drupal_set_message(t('Your question has been submitted. An e-mail will be sent to <i>@mail</i> when answered.', array('@mail' => $asker_email)), 'status');
     }
     // Handle the notification of asker
-    */
+  }
   }
 }
 
@@ -373,7 +376,7 @@ function faq_ask_form_node_faq_edit_form_alter(&$form, FormStateInterface $form_
 function faq_ask_edit_submit($form, FormStateInterface $form_state) {
   $node_id = $form_state->getValue('nid');
   $node = node_load($node_id);
-  if (is_object($node->body) && ($node->body->value != '')) {
+  if (is_object($node->body) && empty($node->body->value)) {
     $node->set("status", 1);
     $node->save();
   } 
@@ -414,18 +417,20 @@ function faq_ask_submit($form, FormStateInterface $form_state) {
  * @param object $node
  *   Node to be deleted.
  */
-function faq_ask_node_delete($node) {
-
-  // Remove notifications
-  \Drupal::database()->delete('faq_ask_notify')
-    ->condition('nid', $node->id())
-    ->execute();
-
-  // Remove term/nid pairs
-  \Drupal::database()->delete('faq_ask_term_index')
-    ->condition('nid', $node->id())
-    ->execute();
-
+function faq_ask_entity_delete(EntityInterface $node, $type) {
+if($type == "node") {
+  if ($node->getType() == 'faq') {
+    // Remove notifications
+    \Drupal::database()->delete('faq_ask_notify')
+      ->condition('nid', $node->id())
+      ->execute();
+  
+    // Remove term/nid pairs
+    \Drupal::database()->delete('faq_ask_term_index')
+      ->condition('nid', $node->id())
+      ->execute();
+  }
+}
 }
 
 /**
@@ -470,5 +475,24 @@ function faq_ask_node_access(NodeInterface $node, $op, $account, $langcode) {
   if ($op == 'create') {
     return (\Drupal::currentUser()->hasPermission('ask question') || \Drupal::currentUser()->hasPermission('answer question'));
   }
+  
+  if ($op == 'update') {
+    return (\Drupal::currentUser()->hasPermission('ask question') || \Drupal::currentUser()->hasPermission('answer question'));
+  }
 
+}
+
+/**
+* @file
+* Theming preparation unanswered list functions for the FAQ-Ask module.
+*/
+
+/**
+ * Create list of unanswered questions for display in block
+ *
+ * @param &$variables
+ *   Array reference of arguments given to the theme() function.
+ */
+function template_preprocess_faq_ask_unanswered_block(&$variables) {
+  return Utility::faq_ask_unanswered_block_build($variables);
 }

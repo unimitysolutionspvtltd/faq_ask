@@ -14,6 +14,8 @@ use Drupal\Component\Utility\Crypt;
 use Drupal\Core\Url;
 use Drupal\Component\Render\FormattableMarkup;
 use Drupal\faq\FaqViewer;
+use Drupal\Component\Utility\SafeMarkup;
+
 /**
  * Contains static helper functions for FAQ module.
  */
@@ -29,8 +31,6 @@ class Utility {
   
   public function _faq_ask_valid_token($token, $value = '', $skip_anonymous = FALSE) {
     $user = \Drupal::currentUser();
-    dpm($value);
-    dpm($token == Utility::_faq_ask_get_token($value));
     return (($skip_anonymous && $user->id() == 0) || ($token == Utility::_faq_ask_get_token($value)));
   
   }
@@ -74,7 +74,7 @@ class Utility {
  
    // Bounce anonymous users.
    if ($user->id() == 0) {
-       if ($limit < 1000) {  // If this is a block
+     if ($limit < 1000) {  // If this is a block
        return NULL;  // Return empty content
      }
      else {
@@ -132,7 +132,6 @@ class Utility {
    elseif (!$can_edit) {            // If not expert and cannot edit the node by permission - edit own
      $query->condition('n.uid', $user->id());  // AND n.uid = $user->uid (the user and the node owner are the same)
    }
-
    // A high limit means we are doing the "unanswered" page.
    if ($limit < 1000) {
      $totalcount = $query->countQuery()->execute()->fetchField();   // Find the total number of items w/o limit
@@ -166,7 +165,6 @@ class Utility {
      if (empty($data[$tid])) $data[$tid]=array();
      $data[$tid][] = $nid;
    }
-   //dpm($data);
    foreach ($data as $tid => $nodes) {
      // Output via theme each block of nodes
      $markup = array(
@@ -272,7 +270,6 @@ $faq_ask_settings = \Drupal::config('faq_ask.settings');
     }
   }
 
-
    // Parse through all tagging fields in use
    foreach ($fields_new as $field_name => $field_details) {
     if (!empty($properties->getTargetBundle())) {
@@ -320,18 +317,18 @@ $faq_ask_settings = \Drupal::config('faq_ask.settings');
     // Get taxonomy image.
     $variables['term_image'] = '';
     if ($moduleHandler->moduleExists('taxonomy_image')) {
-      $variables['term_image'] = taxonomy_image_display($term->tid, array('class' => 'faq-tax-image'));
+      $variables['term_image'] = taxonomy_image_display($term->id(), array('class' => 'faq-tax-image'));
     }
   
     // Configure header.
     if (is_object($term)) {
   
       $variables['category_depth']   = (!empty($term->depth)?$term->depth:1);
-      $variables['category_name']   = check_plain(faq_tt("taxonomy:term:$term->tid:name", $term->name));
-      $variables['header_title']     = check_plain(faq_tt("taxonomy:term:$term->tid:name", $term->name));
+      $variables['category_name']   = SafeMarkup::checkPlain($term->getName());
+      $variables['header_title']     = SafeMarkup::checkPlain($term->getName());
   
       // Configure category description.
-      $variables['description'] = check_markup(faq_tt("taxonomy:term:$term->tid:description", $term->description));
+      $variables['description'] = SafeMarkup::checkPlain($term->get('description')->value);
     }
     else {
       $variables['category_depth']   = 1;
@@ -400,6 +397,7 @@ $faq_ask_settings = \Drupal::config('faq_ask.settings');
       
       $nodes[] = $node_var;
     }
+
     $variables['nodes'] = $nodes;
     $variables['question_count'] = $count;
   }
@@ -414,7 +412,6 @@ $faq_ask_settings = \Drupal::config('faq_ask.settings');
     *
     */
    public function faq_ask_a_question_blockform() {
-   
      // Include page handler for node_add()
      module_load_include('inc', 'node', 'node.pages');
    
@@ -450,7 +447,53 @@ $faq_ask_settings = \Drupal::config('faq_ask.settings');
      else {
        return '';
      }
-   
    }
+   
+  public function faq_ask_unanswered_block_build(&$variables) {
+      $data = $variables['data'];
+    $mode = $variables['mode'];
+    $more_link = $variables['more_link'];
+  
+    $items = array();
+    foreach ($data as $nid) {
+      $items[] = Utility::_faq_ask_answerlink($nid, $mode);
+    }
+  
+    $variables['items'] = $items;
+    if ($more_link){
+          $variables['links']['title'] =  'more...';
+          $variables['links']['href'] =  '/faq_ask/unanswered';
+    }
+  }
+     
+     /**
+      * Helper function to create a link to unanswered nodes using the toke verificationb
+      *
+      * @param unknown_type $n    Node, either node object or node id
+      * @param unknown_type $mode  'answer' or 'edit'
+      *
+      * @return  string  Link to the node with a token
+      */
+      public function _faq_ask_answerlink($node, $mode) {
+        if (!is_object($node))
+          $node = node_load($node);
+        $nid = $node->id();
+      
+        // Create token to enable instant answering of unanswered questions
+        $token = Utility::_faq_ask_get_token('faq_ask/answer/' . $nid);
+        $options = array( 'query' => array( 'token' => array( $token ) ));
+      $item_return = array();
+        // Allow for edit mode in link to the unanswered questions if in edit mode
+        if ($mode == 'edit') {
+          $item_return['title'] =  $node->get('title')->value;
+          $item_return['href'] = Url::fromUserInput("/faq_ask/edit/" . $node->id() , array("query" => array( 'ask' => TRUE )))->toString();
+          
+        }
+        elseif ($mode == 'answer') {
+          $item_return['title'] =  $node->get('title')->value;
+          $item_return['href'] = Url::fromUserInput("/faq_ask/answer/" . $node->id() , array("query" => array( 'token' => $token )))->toString();
+        }
+        return $item_return;
+      }
 }
 
