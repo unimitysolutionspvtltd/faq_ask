@@ -401,53 +401,6 @@ $faq_ask_settings = \Drupal::config('faq_ask.settings');
     $variables['nodes'] = $nodes;
     $variables['question_count'] = $count;
   }
-  
-  /**
-    * Block "Ask a Question" form implementation
-    *
-    * This implements the form displayed in a block where the user may ask a question
-    *
-    * @return array
-    *   Block content
-    *
-    */
-   public function faq_ask_a_question_blockform() {
-     // Include page handler for node_add()
-     module_load_include('inc', 'node', 'node.pages');
-   
-     // If user is allowed to create a faq content type
-     if (node_access('create', 'faq')) {
-   
-       // Fool the hook_form_alter function to think we're in an faq-ask page
-       $saved_get = '';
-       if (isset($_GET['ask'])) {
-         $saved_get = $_GET['ask'];
-       }
-       $_GET['ask'] = '1';
-       $_GET['block'] = 'TRUE';
-   
-       // Note title before rendering of form.
-       $title = drupal_get_title();
-       // Create the form
-       $form = node_add('faq');
-       // Restore title, which will have been overridden.
-       drupal_set_title($title);
-   
-       // Restore the $_GET['ask'] variable status
-       if ($saved_get != '') {
-         $_GET['ask'] = $saved_get;
-       }
-       else {
-         unset($_GET['ask']);
-       }
-       unset($_GET['block']);
-   
-       return $form;
-     }
-     else {
-       return '';
-     }
-   }
    
   public function faq_ask_unanswered_block_build(&$variables) {
       $data = $variables['data'];

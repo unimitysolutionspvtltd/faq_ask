@@ -45,6 +45,7 @@ function faq_ask_help($route_name, RouteMatchInterface $route_match) {
  * @return array $form
  *   Modified form as called by reference
  */
+
 function faq_ask_form_node_faq_form_alter(&$form, FormStateInterface $form_state) {
 
   $user = \Drupal::currentUser();
